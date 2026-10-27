@@ -1,0 +1,76 @@
+
+pipeline {
+    agent any
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Build and Test') {
+            steps {
+                bat '"C:\\tools\\apache-maven-3.10.0\\bin\\mvn.cmd" clean verify'
+            }
+            post {
+                always {
+                    junit allowEmptyResults: true,
+                          testResults: '**/target/surefire-reports/TEST-*.xml'
+                }
+            }
+        }
+
+        stage('Check Build Artifact') {
+            steps {
+                bat '''
+                    if not exist "target\\jenkins-ci-lab-1.0-SNAPSHOT.jar" (
+                        echo ERROR: Expected JAR was not created.
+                        exit /b 1
+                    )
+                    echo Build artifact found.
+                '''
+            }
+        }
+
+        stage('Deploy Artifact') {
+            steps {
+                bat '''
+                    if not exist "C:\\Jenkins-Deploy" (
+                        mkdir "C:\\Jenkins-Deploy"
+                    )
+
+                    copy /Y "target\\jenkins-ci-lab-1.0-SNAPSHOT.jar" "C:\\Jenkins-Deploy\\jenkins-ci-lab-1.0-SNAPSHOT.jar"
+
+                    if errorlevel 1 exit /b 1
+                '''
+            }
+        }
+
+        stage('Verify Deployment') {
+            steps {
+                bat '''
+                    if not exist "C:\\Jenkins-Deploy\\jenkins-ci-lab-1.0-SNAPSHOT.jar" (
+                        echo ERROR: Deployed JAR not found.
+                        exit /b 1
+                    )
+
+                    fc /b "target\\jenkins-ci-lab-1.0-SNAPSHOT.jar" "C:\\Jenkins-Deploy\\jenkins-ci-lab-1.0-SNAPSHOT.jar"
+
+                    if errorlevel 1 exit /b 1
+
+                    echo Deployment verified successfully.
+                '''
+            }
+        }
+    }
+
+    post {
+        success {
+            echo 'Experiment 05: CD Pipeline SUCCESS'
+        }
+        failure {
+            echo 'Experiment 05: CD Pipeline FAILED - check Console Output'
+        }
+    }
+}
